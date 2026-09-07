@@ -18,5 +18,7 @@ typedef struct
 
 int unix_connect(const char *path);
 int unix_connect_retry(const char *path, int max_attempts, useconds_t delay_us);
+uint64_t now_monotonic_ns(void);
+ssize_t write_full(int fd, const void *buf, size_t n);
 
 #endif
