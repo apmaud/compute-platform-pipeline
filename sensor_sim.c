@@ -14,7 +14,7 @@ int main(int argc, char *argv[])
   // simulated freq for a sensor
   double rate_hz = 10.0;
   int num_frames = 50;
-  char *connect_path = "connect path";
+  char *connect_path = WORKER_SOCK_PATH;
 
   // option flags to put on the call, so we can edit the simulated sensor options, loop will pull out all flags in argv
   int opt;
@@ -31,7 +31,6 @@ int main(int argc, char *argv[])
     }
   }
   useconds_t period_us = (useconds_t)(1000000.0 / rate_hz); // conversion
-
 
 
   // must connect to worker somehow, fd for that

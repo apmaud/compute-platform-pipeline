@@ -7,6 +7,7 @@
 #include <sys/types.h>
 
 #define PAYLOAD_SIZE 64
+#define WORKER_SOCK_PATH "/tmp/pipeline_worker.sock"
 
 typedef struct
 {
