@@ -17,42 +17,6 @@ uint64_t now_monotonic_ns(void)
   return (uint64_t)ts.tv_sec * 1000000000 + (uint64_t)ts.tv_nsec; // conversion to nanoseconds for simplicity later
 }
 
-int unix_listen(const char *path)
-{
-  // make socket for bind and listen
-  int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-  if (fd < 0) return -1;
-
-  struct sockaddr_un addr;
-  memset(&addr, 0, sizeof(addr));
-  addr.sun_family = AF_UNIX;
-  if (strlen(path) >= sizeof(addr.sun_path))
-  {
-    fprintf(stderr, "[worker] listen: socket path too long %s\n", path);
-    close(fd);
-    return -1;
-  }
-  strncpy(addr.sun_path, path, sizeof(path)-1);  // -1 for null temrinating byte, man page
-  
-  unlink(path); // removes stale socket file from a previous run
-                
-  if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
-  {
-    perror("[worker] bind");
-    close(fd);
-    return -1;
-  }
-
-  if (listen(fd, 1) < 0)
-  {
-    perror("[worker] listen");
-    close(fd);
-    return -1;
-  }
-
-  return fd;
-}
-
 ssize_t write_full(int fd, const void *buf, size_t n)
 {
   const uint8_t *p = buf; // 1 byte exactly because its the memory address start, this will move! It points to memory address 0 of the frame
@@ -72,6 +36,25 @@ ssize_t write_full(int fd, const void *buf, size_t n)
 
   return (ssize_t)(n-left); // returns the total bytes written (total bytes of frame - new total number of bytes to write)
 
+}
+
+ssize_t read_full(int fd, const void *buf, size_t n)
+{
+  uint8_t *p = buf;
+  size_t left = n;
+  while (left > 0)
+  {
+    ssize_t r = read(fd, p, left);
+    if (r < 0)
+    {
+      if (errno == EINTR) continue;
+      return -1;
+    }
+    if (r == 0) break;
+    p += r;
+    left -= (size_t)r;
+  }
+  return (ssize_t)(n-left);
 }
 
 int unix_connect(const char *path)
@@ -109,3 +92,40 @@ int unix_connect_retry(const char *path, int max_attempts, useconds_t delay_us)
   }
   return -1;
 }
+
+int unix_listen(const char *path)
+{
+  // make socket for bind and listen
+  int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (fd < 0) return -1;
+
+  struct sockaddr_un addr;
+  memset(&addr, 0, sizeof(addr));
+  addr.sun_family = AF_UNIX;
+  if (strlen(path) >= sizeof(addr.sun_path))
+  {
+    fprintf(stderr, "[worker] listen: socket path too long %s\n", path);
+    close(fd);
+    return -1;
+  }
+  strncpy(addr.sun_path, path, sizeof(path)-1);  // -1 for null temrinating byte, man page
+  
+  unlink(path); // removes stale socket file from a previous run
+                
+  if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
+  {
+    perror("[worker] bind");
+    close(fd);
+    return -1;
+  }
+
+  if (listen(fd, 1) < 0)
+  {
+    perror("[worker] listen");
+    close(fd);
+    return -1;
+  }
+
+  return fd;
+}
+

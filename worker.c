@@ -1,18 +1,42 @@
-
-
-
 #include "pipeline.h"
+#include <stdatomic.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/socket.h>
+
 int main()
 {
-  char *sink_path = "sink path";
+  const char *listen_path = WORKER_SOCK_PATH;
+  const char *sink_path = "sink path";
 
   // receive a frame
   // how can we receive a frame? unix socket to receive connection 
-  int listen_fd; // listening for a connection from sensor
-  int client_fd; // connection once sensor sim appears
+ 
+  int listen_fd = unix_listen(listen_path); // listening for a connection from sensor
+  if (listen_fd < 0)
+  {
+    fprintf(stderr, "[worker %d] could not listen on %s\n", getpid(), listen_path);
+    return 1;
+  }
+  printf("[worker %d] is listening on %s\n", getpid(), listen_path);
 
-  int 
+  int client_fd = accept(listen_fd, NULL, NULL);// connection once sensor sim appears
+  if (client_fd < 0)
+  {
+    perror("[worker] listener accept");
+    return 1;
+  }
+  printf("[worker %d] sensor-sim connected, processing frames\n", getpid());
 
+  uint64_t processed = 0;
+  frame_t frame;
+
+  for(;;)
+  {
+    ssize_t r = read_full(client_fd, const void *buf, sizeof(frame));
+
+  }
 
 
   // process it 
