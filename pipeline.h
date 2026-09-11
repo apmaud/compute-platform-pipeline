@@ -2,7 +2,6 @@
 #define PIPELINE_H 
 
 #include <stdint.h>
-#include <type_traits>
 #include <unistd.h>
 #include <time.h>
 #include <sys/types.h>
