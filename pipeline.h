@@ -2,12 +2,14 @@
 #define PIPELINE_H 
 
 #include <stdint.h>
+#include <type_traits>
 #include <unistd.h>
 #include <time.h>
 #include <sys/types.h>
 
 #define PAYLOAD_SIZE 64
 #define WORKER_SOCK_PATH "/tmp/pipeline_worker.sock"
+#define SINK_SOCK_PATH "/tmp/pipeline_sink.sock"
 
 typedef struct
 {
@@ -15,6 +17,13 @@ typedef struct
   uint64_t gen_time_ns;
   uint8_t payload[PAYLOAD_SIZE];
 } frame_t;
+
+typedef struct
+{
+  uint64_t seq;
+  uint64_t gen_time_ns;
+  pid_t worker_pid;
+} result_t;
 
 
 int unix_connect(const char *path);

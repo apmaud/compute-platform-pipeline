@@ -54,7 +54,7 @@ ssize_t read_full(int fd, const void *buf, size_t n)
     p += r;
     left -= (size_t)r;
   }
-  return (ssize_t)(n-left);
+  return (ssize_t)(n-left); // returns total bytes read
 }
 
 int unix_connect(const char *path)
