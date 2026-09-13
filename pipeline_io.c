@@ -6,6 +6,7 @@
 #include <sys/un.h>
 #include <stdio.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #include "pipeline.h"
 
@@ -127,5 +128,12 @@ int unix_listen(const char *path)
   }
 
   return fd;
+}
+
+int set_nonblocking(int fd)
+{
+  int flags = fcntl(fd, F_GETFL, 0);
+  if (flags < 0) return -1;
+  return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 

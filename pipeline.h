@@ -31,5 +31,6 @@ uint64_t now_monotonic_ns(void);
 ssize_t write_full(int fd, const void *buf, size_t n);
 ssize_t read_full(int fd, const void *buf, size_t n);
 int unix_listen(const char *path);
+int set_nonblocking(int fd);
 
 #endif
