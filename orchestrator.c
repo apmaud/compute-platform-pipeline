@@ -1,16 +1,40 @@
+#include <atomic>
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
-
+#include <signal.h>
 
 #include "pipeline.h"
 
 #define MAX_WORKERS 32
 
+
+static pid_t spawn_worker(const char *worker_path, const char *sink_path)
+{
+  pid_t pid = fork();
+  if (pid < 0)
+  {
+    perror("fork");
+    return -1;
+  }
+  if (pid == 0) // only true in the new child
+  {
+    // replaces current process image with a new process image
+    execl("./worker", "worker", "-l", worker_path, "-c", sink_path, (char *)NULL);
+    perror("execl");
+    _exit(1);
+  }
+  return pid;
+}
+
 int main (int argc, char *argv[])
 {
+  //  SIGPIPE = broken pipe, signal kernal sends to a process when calling write() on a socket whose reading end no longer exists (worker or sink)
+  // ignores the kill action to the orchestrator if writing to a dead worker and returns -1 ordinary path failure
+  signal(SIGPIPE, SIG_IGN); 
+
   // spawn N workers: how many, socket path for each, PID and connection fd
   int num_workers = 3;
   const char *listen_path = WORKER_SOCK_PATH;
@@ -46,21 +70,9 @@ int main (int argc, char *argv[])
   {
     snprintf(worker_paths[i], sizeof(worker_paths[i]), "/tmp/pipeline_worker_%d.sock", i);
 
-    pid_t pid = fork();
-    if (pid < 0)
-    {
-      perror("fork");
-      return 1;
-    }
-    if (pid == 0) // only true in the new child
-    {
-      // replaces current process image with a new process image
-      execl("./worker", "worker", "-l", worker_paths[i], "-c", sink_path, (char *)NULL);
-      perror("execl");
-      _exit(1);
-    }
-    worker_pids[i] = pid;
-    printf("[orchestrator] spawned wokrer %d (pid=%d) listening at %s\n", i, pid, worker_paths[i]);
+    worker_pids[i] = spawn_worker(worker_paths[i], sink_path);
+    if (worker_pids[i] < 0 ) return 1;
+    printf("[orchestrator] spawned worker %d (pid=%d) listening at %s\n", i, worker_pids[i], worker_paths[i]);
   }
 
   // connect to each spawned worker
@@ -100,6 +112,7 @@ int main (int argc, char *argv[])
   frame_t frame;
   for (;;)
   {
+    // reading from sensor
     ssize_t r = read_full(client_fd, &frame, sizeof(frame));
     if (r == 0)
     {
@@ -112,11 +125,21 @@ int main (int argc, char *argv[])
       break;
     }
 
+    // writing to worker
     ssize_t w = write_full(worker_fds[next_worker], &frame, sizeof(frame));
     if (w != (ssize_t)sizeof(frame))
     {
-      fprintf(stderr, "[orchestrator] short write to worker %d\n", next_worker);
-      break;
+      fprintf(stderr, "[orchestrator] worker %d appears dead, respawning...\n", next_worker);
+      close(worker_fds[next_worker]);
+      worker_pids[next_worker] = spawn_worker(worker_paths[next_worker], sink_path);
+      worker_fds[next_worker] = unix_connect_retry(worker_paths[next_worker], 20, 100000);
+      if (worker_pids[next_worker] < 0 || worker_fds[next_worker < 0])
+      {
+        fprintf(stderr, "[orchestrator] failed to respawn worker %d, giving up\n", next_worker);
+        break;
+      }
+      printf("[orchestrator] worker %d respawned (pid=%d)\n", next_worker, worker_pids[next_worker]);
+      write_full(worker_fds[next_worker], &frame, sizeof(frame));
     }
 
     dispatched++;
