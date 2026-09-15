@@ -14,8 +14,18 @@ typedef struct {
   size_t buf_used; // bytes of current result_t collected so far
 } sink_conn_t;
 
+typedef struct
+{
+  uint64_t count;
+  uint64_t sum_latency_ns;
+  uint64_t min_latency_ns;
+  uint64_t max_latency_ns;
+  uint64_t first_result_ns;
+  uint64_t last_result_ns;
+} stats_t;
+
 // called once total of 24 bytes actually arrived for result_t, then we can process it!
-static void handle_result(sink_conn_t *conn, uint64_t *count)
+static void handle_result(sink_conn_t *conn, stats_t *stats, int quiet)
 {
   // copies buffer in conn to the actual properly typed result_t
   result_t result;
@@ -25,26 +35,63 @@ static void handle_result(sink_conn_t *conn, uint64_t *count)
   uint64_t now_ns = now_monotonic_ns();
   uint64_t latency_ns = now_ns - result.gen_time_ns;
 
-  printf("[sink] seq=%-4llu worker_pid=%-6d latency=%.3f ms\n",
+
+  if (!quiet)
+  {
+    printf("[sink] seq=%-4llu worker_pid=%-6d latency=%.3f ms\n",
       (unsigned long long)result.seq,
       (int)result.worker_pid,
       latency_ns / 1e6);
+  }
 
-  // global counter
-  (*count)++;
-  conn->buf_used = 0; // ready to accumulate this connection's next result
+  if (stats->count == 0)
+  {
+    stats->first_result_ns = now_ns;
+  }
+  stats->last_result_ns = now_ns;
+  stats->count++;
+  stats->sum_latency_ns += latency_ns;
+  if (latency_ns < stats->min_latency_ns) stats->min_latency_ns = latency_ns;
+  if (latency_ns < stats->max_latency_ns) stats->max_latency_ns = latency_ns;
+
+  conn->buf_used = 0;
+}
+
+static void print_summary(const stats_t *stats)
+{
+  printf("\n[sink] ===== summary =====\n");
+  printf("[sink] total results:   %llu\n", (unsigned long long)stats->count);
+  
+  if (stats->count == 0) return;
+
+  double avg_ms = (double)stats->sum_latency_ns / (double)stats->count / 1e6;
+  double min_ms = (double)stats->min_latency_ns / 1e6;
+  double max_ms = (double)stats->max_latency_ns / 1e6;
+  printf("[sink] avg latency:     %.3f ms\n", avg_ms);
+  printf("[sink] min latency:     %.3f ms\n", min_ms);
+  printf("[sink] max latency:     %.3f ms\n", max_ms);
+
+  // guard block, if only one result, first and last are the same and elapsed is 0
+  if (stats->count > 1) {
+      double elapsed_s = (double)(stats->last_result_ns - stats->first_result_ns) / 1e9;
+      if (elapsed_s > 0.0) {
+          printf("[sink] throughput:      %.1f frames/sec\n", (double)stats->count / elapsed_s);
+      }
+  }
 }
 
 int main(int argc, char *argv[])
 {
   const char *listen_path = SINK_SOCK_PATH;
+  int quiet = 0;
 
   int opt;
-  while ((opt = getopt(argc, argv, "l:")) != -1)
+  while ((opt = getopt(argc, argv, "l:q")) != -1)
   {
     switch (opt)
     {
       case 'l': listen_path = optarg; break;
+      case 'q': quiet = 1; break;
       default:
         fprintf(stderr, "usage: %s [-l listen_path]\n, argv[0]", argv[0]);
         return 1;
@@ -79,7 +126,11 @@ int main(int argc, char *argv[])
   }
 
 
-  uint64_t count = 0; // total results ever received, across every worker forever
+
+  stats_t stats;
+  memset(&stats, 0, sizeof(stats));
+  stats.min_latency_ns = UINT64_MAX; // to the max, so first real latency is guaranteed to be smaller
+
   int active_workers = 0; // how many workers are currently connected right now
   int ever_connected = 0; // flag that flips to 1 the first time any worker connects to the sink, never flips back
   
@@ -149,13 +200,13 @@ int main(int argc, char *argv[])
       conn->buf_used += (size_t)r;
       if(conn->buf_used == sizeof(result_t))
       {
-        handle_result(conn, &count); // if 24 bytes came through, actualy process it
+        handle_result(conn, &stats, quiet); // if 24 bytes came through, actualy process it
       }
     }
   }
 
 done:
-  printf("[sink] total results received: %llu\n", (unsigned long long)count);
+  print_summary(&stats);
   close(listen_fd);
   close(epfd);
   return 0;
