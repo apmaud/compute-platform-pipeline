@@ -39,7 +39,7 @@ ssize_t write_full(int fd, const void *buf, size_t n)
 
 }
 
-ssize_t read_full(int fd, const void *buf, size_t n)
+ssize_t read_full(int fd, void *buf, size_t n)
 {
   uint8_t *p = buf;
   size_t left = n;
@@ -109,7 +109,7 @@ int unix_listen(const char *path)
     close(fd);
     return -1;
   }
-  strncpy(addr.sun_path, path, sizeof(path)-1);  // -1 for null temrinating byte, man page
+  strncpy(addr.sun_path, path, sizeof(addr.sun_path)-1);  // -1 for null temrinating byte, man page
   
   unlink(path); // removes stale socket file from a previous run
                 

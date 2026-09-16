@@ -3,15 +3,29 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <stdlib.h>
 
 #include "pipeline.h"
 
-int main()
+int main(int argc, char *argv[])
 {
+
   const char *listen_path = WORKER_SOCK_PATH;
   const char *sink_path = SINK_SOCK_PATH;
   useconds_t processing_delay_us = 5000; // for fake processing 5ms
-
+  int opt;
+  while ((opt = getopt(argc, argv, "l:c:d:")) != -1)
+  {
+    switch (opt)
+    {
+      case 'l': listen_path = optarg; break;
+      case 'c': sink_path = optarg; break;
+      case 'd': processing_delay_us = (useconds_t)atoi(optarg); break;
+      default:
+        fprintf(stderr, "usage: %s [-l listen_path] [-c sink_path] [-d delay_us]\n", argv[0]);
+        return 1;
+    }
+  }
 
   // Connecting to sink
   printf("[worker %d] connecting to sink at %s\n", getpid(), sink_path);

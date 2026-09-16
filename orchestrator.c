@@ -1,4 +1,3 @@
-#include <atomic>
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -41,7 +40,7 @@ int main (int argc, char *argv[])
   const char *sink_path = SINK_SOCK_PATH;
 
   int opt;
-  while ((opt = getopt(argc, argv, "w:l:s")) != -1)
+  while ((opt = getopt(argc, argv, "w:l:s:")) != -1)
   {
     switch (opt)
     {
@@ -57,6 +56,7 @@ int main (int argc, char *argv[])
   if (num_workers < 1 || num_workers > MAX_WORKERS)
   {
     fprintf(stderr, "[orchestrator] num_workers must be between 1 and %d\n", MAX_WORKERS);
+    return 1;
   }
   
   // arrays for indexing for tracking
@@ -133,7 +133,7 @@ int main (int argc, char *argv[])
       close(worker_fds[next_worker]);
       worker_pids[next_worker] = spawn_worker(worker_paths[next_worker], sink_path);
       worker_fds[next_worker] = unix_connect_retry(worker_paths[next_worker], 20, 100000);
-      if (worker_pids[next_worker] < 0 || worker_fds[next_worker < 0])
+      if (worker_pids[next_worker] < 0 || worker_fds[next_worker] < 0)
       {
         fprintf(stderr, "[orchestrator] failed to respawn worker %d, giving up\n", next_worker);
         break;

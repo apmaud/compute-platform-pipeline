@@ -52,7 +52,7 @@ static void handle_result(sink_conn_t *conn, stats_t *stats, int quiet)
   stats->count++;
   stats->sum_latency_ns += latency_ns;
   if (latency_ns < stats->min_latency_ns) stats->min_latency_ns = latency_ns;
-  if (latency_ns < stats->max_latency_ns) stats->max_latency_ns = latency_ns;
+  if (latency_ns > stats->max_latency_ns) stats->max_latency_ns = latency_ns;
 
   conn->buf_used = 0;
 }
@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
   printf("[sink] listening on %s\n", listen_path);
 
   // create empty watch list for kernel to watch: will be watching new for new connections (ptr = NULL) and already connected (ptr = conn)
-  int epfd = epoll_create(0);
+  int epfd = epoll_create1(0);
   if (epfd < 0)
   {
     perror("epoll_create1");
