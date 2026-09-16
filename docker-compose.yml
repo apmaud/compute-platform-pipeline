@@ -1,0 +1,29 @@
+services:
+  sink:
+    build: .
+    command: ["./sink", "-q"]
+    volumes:
+      - sockets:/tmp
+  
+  orchestrator:
+    build: .
+    command: ["./orchestrator", "-w", "3"]
+    volumes: 
+      - sockets:/tmp
+    depends_on:
+      - sink
+
+  sensor_sim:
+    build: .
+    command: ["./sensor_sim", "r", "20", "-n", "50"]
+    volumes:
+      - sockets:/tmp
+    depends_on:
+      - orchestrator
+
+# shared volume across the containers so the UNIX socket connecting can still work
+volumes:
+  sockets:
+
+
+
