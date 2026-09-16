@@ -1,0 +1,47 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  native-build-and-test: # validates the CMakeLists.txt path compile with cmake/gcc and does it behave correctly when run on VM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y cmake gcc make
+
+      - name: Build
+        run: |
+          mkdir build
+          cd build
+          cmake ..
+          cmake --build .
+
+      - name: Smoke/Native test the pipeline
+        run: |
+          cd build
+          ./sink -q > sink.log 2>&1 &
+          SINK_PID=$!
+          sleep 0.3
+          ./orchestrator -w 3 > orch.log 2>&1 &
+          ORCH_PID=$!
+          sleep 0.5
+          ./sensor_sim -r 20 -n 30
+          sleep 1
+          wait $ORCH_PID
+          wait $SINK_PID
+          cat sink.log
+          grep -q "total results:   30" sink.log
+
+  docker-build-and-test: # validates the containerized path, does Dockerfile build succeed and does it run when running through Docker containers isolation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and run via Docker Compose
+        run: docker compose up --build --abort-on-container-exit
+
+      - name: Verify sink processed all frames
+        run: |
+          docker compose logs sink | grep -q "total results:   50"
