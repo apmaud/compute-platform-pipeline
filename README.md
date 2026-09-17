@@ -52,6 +52,7 @@ To run locally, start these in order in three terminals:
 
 <h2> Things to Improve </h2>
 Keep in mind this was made for my own education and practice, to work through making a distributed data pipeline in C. There is plenty to improve here:
+
 - Ideally I should have made each worker its own container
 - TCP/IP sockets should have been used for communication between separate containers. A shared volume can be iffy
 - Actually generated some realistic data, actually processed it, and forwarded everything to the sink
